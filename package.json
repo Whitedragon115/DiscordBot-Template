@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "zip": "node zip.js",
-    "upload": "node upload.js",
-    "dp": "node deploy.js"
+    "zip": "node .script/zip.js",
+    "upload": "node .script/upload.js",
+    "dp": "node .script/deploy.js",
+    "addcmd": "node .script/createCommand.js"
   },
   "author": "",
   "license": "ISC",
