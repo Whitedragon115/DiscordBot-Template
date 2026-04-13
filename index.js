@@ -26,6 +26,8 @@ async function configCheck() {
 
 	//====== Check Config
 
+	const subCommandMismatchResult = subCommandMismatchChecker();
+	if (!subCommandMismatchResult) errorCount++;
 
 	//====== Check End
 
@@ -39,14 +41,88 @@ async function configCheck() {
 	}
 }
 
-async function prismaGenerate(){
+function subCommandMismatchChecker() {
+	const commandsRoot = path.join(__dirname, 'commands');
+	const bracketFolderRegex = /^\[.+\]$/;
+	let checkedCount = 0;
+	let mismatchCount = 0;
+	let loadErrorCount = 0;
+
+	function walk(dirPath, isInsideBracketFolder) {
+		const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+		for (const entry of entries) {
+			const entryPath = path.join(dirPath, entry.name);
+
+			if (entry.isDirectory()) {
+				const nextInsideBracketFolder = isInsideBracketFolder || bracketFolderRegex.test(entry.name);
+				walk(entryPath, nextInsideBracketFolder);
+				continue;
+			}
+
+			if (!isInsideBracketFolder) {
+				continue;
+			}
+
+			if (!entry.name.endsWith('.js') || entry.name === 'index.js') {
+				continue;
+			}
+
+			checkedCount++;
+			const expectedName = path.basename(entry.name, '.js');
+
+			try {
+				const commandModule = require(entryPath);
+				const actualName = commandModule?.data?.name;
+
+				if (typeof actualName !== 'string') {
+					loadErrorCount++;
+					logger.warn(`[Command Name Check] Missing command.data.name in: ${entryPath}`);
+					continue;
+				}
+
+				if (actualName !== expectedName) {
+					mismatchCount++;
+					logger.warn(`[Command Name Check] Mismatch in ${entryPath} (file: "${expectedName}", data.name: "${actualName}")`);
+				}
+			} catch (error) {
+				loadErrorCount++;
+				logger.warn(`[Command Name Check] Failed to load command file: ${entryPath}`);
+				console.error(error);
+			}
+		}
+	}
+
+	if (!fs.existsSync(commandsRoot)) {
+		logger.warn('[Command Name Check] commands folder not found.');
+		return false;
+	}
+
+	logger.box('Subcommand Filename Check');
+	walk(commandsRoot, false);
+
+	if (checkedCount === 0) {
+		logger.info('[Command Name Check] No command files found under [xxx] folders.');
+		return true;
+	}
+
+	if (mismatchCount === 0 && loadErrorCount === 0) {
+		logger.success(`[Command Name Check] Passed (${checkedCount} file(s) checked).`);
+		return true;
+	}
+
+	logger.warn(`[Command Name Check] Found ${mismatchCount} mismatch(es), ${loadErrorCount} load error(s), checked ${checkedCount} file(s).`);
+	return false;
+}
+
+async function prismaGenerate() {
 	try {
 		logger.box('Prisma Client Generation');
 		logger.info('Generating Prisma Client...');
 
-		execSync('npx prisma generate', { 
+		execSync('npx prisma generate', {
 			stdio: 'inherit',
-			cwd: __dirname 
+			cwd: __dirname
 		});
 
 		logger.success('Prisma Client generated successfully.');
@@ -69,7 +145,7 @@ async function init() {
 		process.exit(1);
 	}
 
-	
+
 	logger.line()
 
 	//==== initialize count
@@ -82,7 +158,7 @@ async function init() {
 	const maxActionLength = Math.max(...actionFolders.map(folder => folder.length));
 
 	const foldersPath = path.join(__dirname, 'commands');
-	const commandFolders = fs.readdirSync(foldersPath); 
+	const commandFolders = fs.readdirSync(foldersPath);
 	const maxfolderLength = Math.max(...commandFolders.map(folder => folder.length));
 
 	const maxlength = Math.max(maxfolderLength, maxActionLength);
@@ -92,8 +168,10 @@ async function init() {
 	client.commands = new Collection();
 	for (const folder of commandFolders) {
 
+		const subCommandRegex = /^\[(.*)\]$/;
 		const commandsPath = path.join(foldersPath, folder);
 		const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+		const subCommandFiles = fs.readdirSync(commandsPath).filter(file => fs.statSync(path.join(commandsPath, file)).isDirectory() && subCommandRegex.test(file));
 
 		let loadstring = "";
 		for (const file of commandFiles) {
@@ -106,6 +184,19 @@ async function init() {
 				commandCount++;
 			} else {
 				console.log(`\─x1B[31m[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.\x1B[0m`);
+			}
+		}
+
+		for (const subCommand of subCommandFiles) {
+			const subCommandPath = path.join(commandsPath, subCommand);
+			const subCommandIndex = require(path.join(subCommandPath, 'index.js'));
+			if ('data' in subCommandIndex && 'execute' in subCommandIndex) {
+				subCommandIndex.admin = folder.toLowerCase() === 'admin' ? true : false;
+				client.commands.set(subCommandIndex.data.name, subCommandIndex);
+				loadstring += color.gray('│ ') + color.cyan(`[${subCommand}] `);
+				commandCount++;
+			} else {
+				console.log(`\x1B[31m[WARNING] The command at ${path.join(subCommandPath, 'index.js')} is missing a required "data" or "execute" property.\x1B[0m`);
 			}
 		}
 
@@ -130,7 +221,7 @@ async function init() {
 				loadstring += color.gray('│ ') + color.cyan(`[${file}] `);
 				actionCount++;
 			} else {
-				console.log(`\x1B[31m[WARNING] The action at ${filePath} is missing a required "customid" or "execute" property.`);
+				console.log(`\x1B[31m[WARNING] The action at ${filePath} is missing a required "customId" or "execute" property.\x1B[0m`);
 			}
 		}
 		const folderNameSpaces = ' '.repeat(maxlength - folder.length);

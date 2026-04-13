@@ -68,11 +68,23 @@ function LoadCommandFolder() {
 	for (const folder of commandFolders) {
 		const commandPath = path.join(CommandFolderPath, folder);
 		const commandFiles = fs.readdirSync(commandPath).filter(file => file.endsWith('.js'));
+		const subCommandRegex = /^\[(.*)\]$/;
+		const subCommandFiles = fs.readdirSync(commandPath).filter(file => fs.statSync(path.join(commandPath, file)).isDirectory() && subCommandRegex.test(file));
+
 		for (const file of commandFiles) {
 			const filePath = path.join(commandPath, file);
 			const command = require(filePath);
 			command.folder = folder;
 			Command[command.data.name] = command;
+		}
+
+		for (const subCommandFolder of subCommandFiles) {
+			const subCommandPath = path.join(commandPath, subCommandFolder);
+			const subCommandIndexPath = path.join(subCommandPath, 'index.js');
+			const subCommand = require(subCommandIndexPath);
+			
+			subCommand.folder = folder;
+			Command[subCommand.data.name] = subCommand;
 		}
 	}
 }
