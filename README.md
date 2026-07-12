@@ -33,10 +33,10 @@
    ```
 
 5. Use Prisma
-   
    ```js
-   const { PrismaClient } = require('./generated/prisma/client.ts')
-   const { PrismaMariaDb } = require('@prisma/adapter-mariadb')
+   import { PrismaClient } from './generated/prisma/client.ts';
+   import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+
    const apdapter = new PrismaMariaDb({
        host: process.env.DATABASE_HOST,
        port: process.env.DATABASE_PORT,
@@ -44,6 +44,6 @@
        password: process.env.DATABASE_PASSWORD,
        database: process.env.DATABASE_NAME
    })
-   
+
    const prisma = new PrismaClient({ adapter: apdapter })
    ```

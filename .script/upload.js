@@ -1,11 +1,11 @@
-const fs = require('node:fs/promises');
-const path = require('node:path');
+import { readdir, stat, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
-const ZIP_DIR = path.join(__dirname, '..', 'zips');
+const ZIP_DIR = join(__dirname, '..', 'zips');
 const UPLOAD_URL = 'https://tmpfiles.org/api/v1/upload';
 
 async function getLatestZipFile(dir) {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const entries = await readdir(dir, { withFileTypes: true });
     const zipFiles = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.zip'));
 
     if (zipFiles.length === 0) {
@@ -15,8 +15,8 @@ async function getLatestZipFile(dir) {
     let latest = null;
 
     for (const file of zipFiles) {
-        const filePath = path.join(dir, file.name);
-        const stats = await fs.stat(filePath);
+        const filePath = join(dir, file.name);
+        const stats = await stat(filePath);
 
         if (!latest || stats.mtimeMs > latest.mtimeMs) {
             latest = {
@@ -36,7 +36,7 @@ function toDirectDownloadUrl(url) {
 }
 
 async function uploadFileToTmpfiles(file) {
-    const fileBuffer = await fs.readFile(file.path);
+    const fileBuffer = await readFile(file.path);
     const fileBlob = new Blob([fileBuffer], { type: 'application/zip' });
     const formData = new FormData();
     formData.append('file', fileBlob, file.name);

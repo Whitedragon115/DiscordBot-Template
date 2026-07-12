@@ -1,8 +1,8 @@
-const fs = require('fs');
-const path = require('path');
-const archiver = require('archiver');
+import { mkdirSync, createWriteStream, existsSync } from 'fs';
+import { join } from 'path';
+import archiver from 'archiver';
 
-const OUTPUT_DIR = path.join(__dirname, '..', 'zips');
+const OUTPUT_DIR = join(import.meta.dirname, '..', 'zips');
 
 const FILES = [
     'index.js',
@@ -22,11 +22,11 @@ const FOLDERS = [
 ];
 
 // Ensure output directory exists
-fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+mkdirSync(OUTPUT_DIR, { recursive: true });
 
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
 const zipName = `DisBot-${timestamp}.zip`;
-const output = fs.createWriteStream(path.join(OUTPUT_DIR, zipName));
+const output = createWriteStream(join(OUTPUT_DIR, zipName));
 const archive = archiver('zip', { zlib: { level: 9 } });
 
 output.on('close', () => {
@@ -49,8 +49,8 @@ archive.on('error', (err) => {
 archive.pipe(output);
 
 for (const file of FILES) {
-    const filePath = path.join(__dirname, file);
-    if (fs.existsSync(filePath)) {
+    const filePath = join(__dirname, file);
+    if (existsSync(filePath)) {
         archive.file(filePath, { name: file });
     } else {
         // console.warn(`Skipping missing file: ${file}`);
@@ -58,8 +58,8 @@ for (const file of FILES) {
 }
 
 for (const folder of FOLDERS) {
-    const folderPath = path.join(__dirname, folder);
-    if (fs.existsSync(folderPath)) {
+    const folderPath = join(__dirname, folder);
+    if (existsSync(folderPath)) {
         archive.directory(folderPath, folder);
     } else {
         // console.warn(`Skipping missing folder: ${folder}`);

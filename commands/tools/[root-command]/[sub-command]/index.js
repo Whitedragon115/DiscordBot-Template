@@ -1,7 +1,7 @@
 
-const { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandGroupBuilder } = require('@discordjs/builders');
+import { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandSubcommandGroupBuilder()
         .setName('sub-command')
         .setDescription('sub-command group'),
@@ -12,8 +12,7 @@ module.exports = {
      */
     async execute(interaction, client) {
 
-        
-        
+
     },
 
     /**

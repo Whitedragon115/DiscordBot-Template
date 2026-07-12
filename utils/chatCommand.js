@@ -1,10 +1,9 @@
-const { Events } = require('discord.js');
+import { Events } from 'discord.js';
 
-module.exports = {
+export default {
     name: Events.MessageCreate,
 
     /**
-     * 
      * @param {import('discord.js').Message} message 
      * @param {import('discord.js').Client} client 
      */
@@ -19,7 +18,8 @@ module.exports = {
 
         switch (cmd) {
             case 'Example':
-                return someFunction()
+                // someFunction();
+                return;
             default:
                 return;
         }

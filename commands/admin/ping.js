@@ -1,7 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('@discordjs/builders');
-const logger = require('../../function/log');
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('admin-ping')
         .setDescription('Replies with Pong!'),

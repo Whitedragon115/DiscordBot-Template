@@ -1,24 +1,16 @@
-const { Client, Collection, GatewayIntentBits } = require('discord.js');
-const { color } = require('console-log-colors')
-const { execSync } = require('child_process');
+import { Collection } from 'discord.js';
+import { color } from 'console-log-colors';
+import { execSync } from 'child_process';
 
-const path = require('path');
-const fs = require('fs');
-const logger = require('./function/log');
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+import logger from './function/log.js';
+import MyClient from './utils/myClient.js';
 
-require('dotenv').config();
+dotenv.config();
 
-const client = new Client({
-	intents: [
-		GatewayIntentBits.Guilds,
-		GatewayIntentBits.GuildMembers,
-		GatewayIntentBits.GuildMessages,
-		GatewayIntentBits.GuildInvites,
-		GatewayIntentBits.GuildWebhooks,
-		GatewayIntentBits.DirectMessages,
-		GatewayIntentBits.MessageContent,
-	]
-});
+const client = new MyClient();
 
 async function configCheck() {
 	let errorCount = 0;
@@ -26,7 +18,7 @@ async function configCheck() {
 
 	//====== Check Config
 
-	const subCommandMismatchResult = subCommandMismatchChecker();
+	const subCommandMismatchResult = await subCommandMismatchChecker();
 	if (!subCommandMismatchResult) errorCount++;
 
 	//====== Check End
@@ -41,14 +33,18 @@ async function configCheck() {
 	}
 }
 
-function subCommandMismatchChecker() {
+async function subCommandMismatchChecker() {
 	const commandsRoot = path.join(__dirname, 'commands');
 	const bracketFolderRegex = /^\[.+\]$/;
 	let checkedCount = 0;
 	let mismatchCount = 0;
 	let loadErrorCount = 0;
 
-	function walk(dirPath, isInsideBracketFolder) {
+	/**
+	 * @param {string} dirPath
+	 * @param {boolean} isInsideBracketFolder
+	 */
+	async function walk(dirPath, isInsideBracketFolder) {
 		const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 
 		for (const entry of entries) {
@@ -56,7 +52,7 @@ function subCommandMismatchChecker() {
 
 			if (entry.isDirectory()) {
 				const nextInsideBracketFolder = isInsideBracketFolder || bracketFolderRegex.test(entry.name);
-				walk(entryPath, nextInsideBracketFolder);
+				await walk(entryPath, nextInsideBracketFolder);
 				continue;
 			}
 
@@ -72,7 +68,7 @@ function subCommandMismatchChecker() {
 			const expectedName = path.basename(entry.name, '.js');
 
 			try {
-				const commandModule = require(entryPath);
+				const { default: commandModule } = await import(new URL(entryPath, import.meta.url).href);
 				const actualName = commandModule?.data?.name;
 
 				if (typeof actualName !== 'string') {
@@ -99,7 +95,7 @@ function subCommandMismatchChecker() {
 	}
 
 	logger.box('Subcommand Filename Check');
-	walk(commandsRoot, false);
+	await walk(commandsRoot, false);
 
 	if (checkedCount === 0) {
 		logger.info('[Command Name Check] No command files found under [xxx] folders.');
@@ -134,7 +130,6 @@ async function prismaGenerate() {
 }
 
 async function init() {
-
 	// Generate Prisma Client
 	// await prismaGenerate();
 
@@ -152,6 +147,7 @@ async function init() {
 
 	let commandCount = 0;
 
+	/** @type {{ [k: string]: any }} */
 	const buttonActions = {};
 	const ActionFolderPath = path.join(process.cwd(), 'trigger');
 	const actionFolders = fs.readdirSync(ActionFolderPath);
@@ -176,7 +172,8 @@ async function init() {
 		let loadstring = "";
 		for (const file of commandFiles) {
 			const filePath = path.join(commandsPath, file);
-			const command = require(filePath);
+			const { default: command } = await import(new URL(filePath, import.meta.url).href);
+
 			if ('data' in command && 'execute' in command) {
 				command.admin = folder.toLowerCase() === 'admin' ? true : false;
 				client.commands.set(command.data.name, command);
@@ -189,14 +186,16 @@ async function init() {
 
 		for (const subCommand of subCommandFiles) {
 			const subCommandPath = path.join(commandsPath, subCommand);
-			const subCommandIndex = require(path.join(subCommandPath, 'index.js'));
+			const subCommandFilePath = path.join(subCommandPath, 'index.js')
+			const { default: subCommandIndex } = await import(new URL(subCommandFilePath, import.meta.url).href);
+
 			if ('data' in subCommandIndex && 'execute' in subCommandIndex) {
 				subCommandIndex.admin = folder.toLowerCase() === 'admin' ? true : false;
 				client.commands.set(subCommandIndex.data.name, subCommandIndex);
 				loadstring += color.gray('│ ') + color.cyan(`[${subCommand}] `);
 				commandCount++;
 			} else {
-				console.log(`\x1B[31m[WARNING] The command at ${path.join(subCommandPath, 'index.js')} is missing a required "data" or "execute" property.\x1B[0m`);
+				console.log(`\x1B[31m[WARNING] The command at ${subCommandFilePath} is missing a required "data" or "execute" property.\x1B[0m`);
 			}
 		}
 
@@ -215,7 +214,8 @@ async function init() {
 		let loadstring = "";
 		for (const file of actionFiles) {
 			const filePath = path.join(actionPath, file);
-			const action = require(filePath);
+			const { default: action } = await import(new URL(filePath, import.meta.url).href);
+
 			if ('customId' in action && 'execute' in action) {
 				buttonActions[action.customId] = action;
 				loadstring += color.gray('│ ') + color.cyan(`[${file}] `);
@@ -235,11 +235,13 @@ async function init() {
 	const eventsPath = path.join(__dirname, 'events');
 	const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
+	/** @type {string[][]} */
 	const loadingMessage = [[], []];
 	let eventcount = 0;
 	for (const file of eventFiles) {
 		const filePath = path.join(eventsPath, file);
-		const event = require(filePath);
+		const { default: event } = await import(new URL(filePath, import.meta.url).href);
+
 		const eventType = event.once ? '[\x1B[32mOnce\x1B[0m]' : '[\x1B[34mOn\x1B[0m]  ';
 		loadingMessage[0].push(`${eventType.padEnd(10)} ${file}`);
 		eventcount++;
@@ -256,7 +258,8 @@ async function init() {
 
 	for (const file of utilFiles) {
 		const filePath = path.join(utilPath, file);
-		const event = require(filePath);
+		const { default: event } = await import(new URL(filePath, import.meta.url).href);
+
 		const eventType = event.once ? '[\x1B[32mOnce\x1B[0m]' : '[\x1B[34mOn\x1B[0m]';
 		loadingMessage[1].push(`${eventType.padEnd(10)} ${file}`);
 		utilcount++;
@@ -301,11 +304,12 @@ async function init() {
 		console.error(promise);
 		logger.error('Reason:');
 		console.error(reason);
-		logger.saveErrorLog(reason, 'unhandledRejection', { promise: String(promise) });
+		if (!(reason instanceof Error)) reason = String(reason);
+
+		logger.saveErrorLog(/** @type {Error | string} */(reason), 'unhandledRejection', { promise: String(promise) });
 		logger.warn('Process will continue running...');
 	});
 
 }
 
 init();
-

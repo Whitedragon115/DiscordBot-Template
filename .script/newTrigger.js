@@ -1,6 +1,6 @@
-const fs = require('fs');
-const path = require('path');
-const { Select, Input } = require('enquirer');
+import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { Select, Input } from 'enquirer';
 
 const triggerTypes = [
     { name: 'button', label: 'button' },
@@ -8,7 +8,7 @@ const triggerTypes = [
     { name: 'select', label: 'select' }
 ];
 
-const stateFilePath = path.join(__dirname, '.newtri-state.json');
+const stateFilePath = join(__dirname, '.newtri-state.json');
 const triggerNamePattern = /^[a-z0-9_-]{1,64}$/;
 
 const color = {
@@ -23,7 +23,7 @@ const color = {
 
 const templates = {
     button: `
-module.exports = {
+export default {
     customId: '%CUSTOM_ID%',
 
     /**
@@ -36,7 +36,7 @@ module.exports = {
 };
 `,
     modal: `
-module.exports = {
+export default {
     customId: '%CUSTOM_ID%',
 
     /**
@@ -49,7 +49,7 @@ module.exports = {
 };
 `,
     select: `
-module.exports = {
+export default {
     customId: '%CUSTOM_ID%',
 
     /**
@@ -104,11 +104,11 @@ async function runPromptSafe(promptInstance) {
 
 function readState() {
     try {
-        if (!fs.existsSync(stateFilePath)) {
+        if (!existsSync(stateFilePath)) {
             return {};
         }
 
-        return JSON.parse(fs.readFileSync(stateFilePath, 'utf8'));
+        return JSON.parse(readFileSync(stateFilePath, 'utf8'));
     } catch {
         return {};
     }
@@ -116,7 +116,7 @@ function readState() {
 
 function writeState(nextState) {
     const state = readState();
-    fs.writeFileSync(stateFilePath, JSON.stringify({ ...state, ...nextState }, null, 2), 'utf8');
+    writeFileSync(stateFilePath, JSON.stringify({ ...state, ...nextState }, null, 2), 'utf8');
 }
 
 function getPreview(preview) {
@@ -151,12 +151,12 @@ function validateTriggerName(value) {
 }
 
 function listTriggerFolders() {
-    const triggerPath = path.join(__dirname, '..', 'trigger');
-    if (!fs.existsSync(triggerPath)) {
+    const triggerPath = join(__dirname, '..', 'trigger');
+    if (!existsSync(triggerPath)) {
         return [];
     }
 
-    return fs.readdirSync(triggerPath, { withFileTypes: true })
+    return readdirSync(triggerPath, { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
         .map((entry) => entry.name)
         .sort((a, b) => a.localeCompare(b));
@@ -267,19 +267,19 @@ async function main() {
     }))).trim();
     preview.customId = customId;
 
-    const triggerFolderPath = path.join(__dirname, '..', 'trigger', folder);
-    const outputPath = path.join(triggerFolderPath, fileName);
+    const triggerFolderPath = join(__dirname, '..', 'trigger', folder);
+    const outputPath = join(triggerFolderPath, fileName);
 
-    if (fs.existsSync(outputPath)) {
+    if (existsSync(outputPath)) {
         console.log(paint(`File already exists: ${outputPath}`, 'yellow'));
         process.exitCode = 1;
         return;
     }
 
-    fs.mkdirSync(triggerFolderPath, { recursive: true });
+    mkdirSync(triggerFolderPath, { recursive: true });
 
     const triggerFileContent = templates[triggerType].replace(/%CUSTOM_ID%/g, customId);
-    fs.writeFileSync(outputPath, triggerFileContent, 'utf8');
+    writeFileSync(outputPath, triggerFileContent, 'utf8');
 
     console.log(paint(`Created trigger file: ${outputPath}`, 'green'));
 }

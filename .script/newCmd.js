@@ -1,7 +1,7 @@
-const fs = require('fs');
-const path = require('path');
-const readline = require('node:readline');
-const { Select, Input } = require('enquirer');
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { clearScreenDown, emitKeypressEvents } from 'node:readline';
+import { Select, Input } from 'enquirer';
 
 const commandModes = [
     { name: 'command', label: 'command' },
@@ -9,7 +9,7 @@ const commandModes = [
     { name: 'subgroupcommand', label: 'subcommandgroup' }
 ];
 
-const stateFilePath = path.join(__dirname, '.newcmd-state.json');
+const stateFilePath = join(__dirname, '.newcmd-state.json');
 
 const color = {
     reset: '\x1b[0m',
@@ -26,10 +26,22 @@ const slashNamePattern = /^[a-z0-9_-]{1,32}$/;
 const BACK_STEP = Symbol('back-step');
 
 const rootIndexTemplate = `
+import { SlashCommandBuilder } from 'discord.js';
 
-const { SlashCommandBuilder, EmbedBuilder } = require('@discordjs/builders');
+/**
+ * @param {any} options
+ * @returns {Promise<any>}
+ */
+async function getExecuteFile(options) {
+    const subCommand = options.getSubcommand();
+    const subGroupCommand = options.getSubcommandGroup()
+    const subGroupCommandFolder = subGroupCommand ? \`/[${subGroupCommand}]\` : ''
+    const filePath = \`.${subGroupCommandFolder}/${subCommand}.js\`;
 
-module.exports = {
+    return (await import(new URL(filePath, import.meta.url).href)).default;
+};
+
+export default {
     data: new SlashCommandBuilder()
         .setName('server')
         .setDescription('server command'),
@@ -39,14 +51,9 @@ module.exports = {
      * @param {import('discord.js').Client} client
      */
     async execute(interaction, client) {
+        const executeFile = await getExecuteFile(interaction.options);
 
-        const subCommand = interaction.options.getSubcommand();
-        const subGroupCommand = interaction.options.getSubcommandGroup()
-        
-        const executeFile = require(\`.\${subGroupCommand ? \`/[\${subGroupCommand}]\` : ''}/\${subCommand}.js\`)
-
-        return await executeFile.execute(interaction, client)
-        
+        return await executeFile.execute?.(interaction, client)
     },
 
     /**
@@ -54,21 +61,17 @@ module.exports = {
      * @param {import('discord.js').Client} client
      */
     async autocomplete(interaction, client) {
+        const executeFile = await getExecuteFile(interaction.options);
 
-        const subCommand = interaction.options.getSubcommand();
-        const subGroupCommand = interaction.options.getSubcommandGroup()
-        
-        const executeFile = require(\`.\${subGroupCommand ? \`/[\${subGroupCommand}]\` : ''}/\${subCommand}.js\`)
-
-        return await executeFile.autocomplete(interaction, client)
-    }
+        return await executeFile.autocomplete?.(interaction, client)
+    },
 }
 `;
 
 const commandTemplate = `
-const { SlashCommandBuilder, EmbedBuilder } = require('@discordjs/builders');
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('%COMMAND_NAME%')
         .setDescription('%COMMAND_DESCRIPTION%'),
@@ -79,7 +82,7 @@ module.exports = {
      */
     async execute(interaction, client) {
 
-        
+
     },
 
     /**
@@ -94,9 +97,9 @@ module.exports = {
 `;
 
 const subcommandTemplate = `
-const { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandBuilder } = require('@discordjs/builders');
+import { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandSubcommandBuilder()
         .setName('%SUBCOMMAND_NAME%')
         .setDescription('%SUBCOMMAND_DESCRIPTION%'),
@@ -107,8 +110,7 @@ module.exports = {
      */
     async execute(interaction, client) {
 
-        
-        
+
     },
 
     /**
@@ -123,9 +125,9 @@ module.exports = {
 `;
 
 const subgroupIndexTemplate = `
-const { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandGroupBuilder } = require('@discordjs/builders');
+import { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandSubcommandGroupBuilder()
         .setName('%SUBCOMMAND_GROUP_NAME%')
         .setDescription('%SUBCOMMAND_GROUP_DESCRIPTION%'),
@@ -136,8 +138,7 @@ module.exports = {
      */
     async execute(interaction, client) {
 
-        
-        
+
     },
 
     /**
@@ -152,9 +153,9 @@ module.exports = {
 `;
 
 const subgroupCommandTemplate = `
-const { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandBuilder } = require('@discordjs/builders');
+import { SlashCommandBuilder, EmbedBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandSubcommandBuilder()
         .setName('%SUBGROUP_COMMAND_NAME%')
         .setDescription('%SUBGROUP_COMMAND_DESCRIPTION%'),
@@ -165,8 +166,7 @@ module.exports = {
      */
     async execute(interaction, client) {
 
-        
-        
+
     },
 
     /**
@@ -198,11 +198,11 @@ function escapeDescription(text) {
 
 function readState() {
     try {
-        if (!fs.existsSync(stateFilePath)) {
+        if (!existsSync(stateFilePath)) {
             return {};
         }
 
-        return JSON.parse(fs.readFileSync(stateFilePath, 'utf8'));
+        return JSON.parse(readFileSync(stateFilePath, 'utf8'));
     } catch {
         return {};
     }
@@ -211,11 +211,11 @@ function readState() {
 function writeState(nextState) {
     const state = readState();
     const merged = { ...state, ...nextState };
-    fs.writeFileSync(stateFilePath, JSON.stringify(merged, null, 2), 'utf8');
+    writeFileSync(stateFilePath, JSON.stringify(merged, null, 2), 'utf8');
 }
 
 function ensureFileDoesNotExist(filePath) {
-    if (fs.existsSync(filePath)) {
+    if (existsSync(filePath)) {
         console.log(paint(`File already exists: ${filePath}`, 'yellow'));
         process.exitCode = 1;
         return false;
@@ -229,43 +229,43 @@ function writeFileWithCheck(filePath, content) {
         return false;
     }
 
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, content, 'utf8');
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, content, 'utf8');
     console.log(paint(`Created file: ${filePath}`, 'green'));
     return true;
 }
 
 function listRootCommands(parentFolder) {
-    const commandsPath = path.join(__dirname, '..', 'commands', parentFolder);
-    if (!fs.existsSync(commandsPath)) {
+    const commandsPath = join(__dirname, '..', 'commands', parentFolder);
+    if (!existsSync(commandsPath)) {
         return [];
     }
 
-    return fs.readdirSync(commandsPath, { withFileTypes: true })
+    return readdirSync(commandsPath, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && /^\[.+\]$/.test(entry.name))
         .map((entry) => normalizeRootCommandName(entry.name))
         .sort((a, b) => a.localeCompare(b));
 }
 
 function listSubcommandGroups(parentFolder, rootCommandName) {
-    const rootFolderPath = path.join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
-    if (!fs.existsSync(rootFolderPath)) {
+    const rootFolderPath = join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
+    if (!existsSync(rootFolderPath)) {
         return [];
     }
 
-    return fs.readdirSync(rootFolderPath, { withFileTypes: true })
+    return readdirSync(rootFolderPath, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && /^\[.+\]$/.test(entry.name))
         .map((entry) => normalizeRootCommandName(entry.name))
         .sort((a, b) => a.localeCompare(b));
 }
 
 function listNormalCommandFolders() {
-    const commandsPath = path.join(__dirname, '..', 'commands');
-    if (!fs.existsSync(commandsPath)) {
+    const commandsPath = join(__dirname, '..', 'commands');
+    if (!existsSync(commandsPath)) {
         return [];
     }
 
-    return fs.readdirSync(commandsPath, { withFileTypes: true })
+    return readdirSync(commandsPath, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && !/^\[.+\]$/.test(entry.name))
         .map((entry) => entry.name)
         .sort((a, b) => a.localeCompare(b));
@@ -422,7 +422,7 @@ async function promptHorizontalMode({ mode, preview, systemPrompt, label, choice
 
             if (renderedLines > 0) {
                 stdout.write(`\x1b[${Math.max(0, renderedLines - 1)}F`);
-                readline.clearScreenDown(stdout);
+                clearScreenDown(stdout);
             }
 
             stdout.write(lines.join('\n'));
@@ -436,7 +436,7 @@ async function promptHorizontalMode({ mode, preview, systemPrompt, label, choice
 
             if (renderedLines > 0) {
                 stdout.write(`\x1b[${Math.max(0, renderedLines - 1)}F`);
-                readline.clearScreenDown(stdout);
+                clearScreenDown(stdout);
             }
         };
 
@@ -470,7 +470,7 @@ async function promptHorizontalMode({ mode, preview, systemPrompt, label, choice
             }
         };
 
-        readline.emitKeypressEvents(stdin);
+        emitKeypressEvents(stdin);
         setRawModeSafe(stdin, true);
         stdin.resume();
         stdin.on('keypress', onKeypress);
@@ -539,7 +539,7 @@ async function promptSelectOrInput({ mode, preview, systemPrompt, choices, focus
 
             if (renderedLines > 0) {
                 stdout.write(`\x1b[${Math.max(0, renderedLines - 1)}F`);
-                readline.clearScreenDown(stdout);
+                clearScreenDown(stdout);
             }
 
             stdout.write(lines.join('\n'));
@@ -553,7 +553,7 @@ async function promptSelectOrInput({ mode, preview, systemPrompt, choices, focus
 
             if (renderedLines > 0) {
                 stdout.write(`\x1b[${Math.max(0, renderedLines - 1)}F`);
-                readline.clearScreenDown(stdout);
+                clearScreenDown(stdout);
             }
         };
 
@@ -631,7 +631,7 @@ async function promptSelectOrInput({ mode, preview, systemPrompt, choices, focus
             }
         };
 
-        readline.emitKeypressEvents(stdin);
+        emitKeypressEvents(stdin);
         setRawModeSafe(stdin, true);
         stdin.resume();
         stdin.on('keypress', onKeypress);
@@ -739,8 +739,8 @@ async function chooseOrEnterFolder({ mode, preview, systemPrompt, existingFolder
 }
 
 async function ensureRootIndexIfMissing(folderPath, rootCommandName, rootDescription) {
-    const rootIndexPath = path.join(folderPath, 'index.js');
-    if (fs.existsSync(rootIndexPath)) {
+    const rootIndexPath = join(folderPath, 'index.js');
+    if (existsSync(rootIndexPath)) {
         return true;
     }
 
@@ -775,7 +775,7 @@ async function createCommand() {
     });
     preview.command = commandName;
 
-    const outputPath = path.join(__dirname, '..', 'commands', commandFolder, `${commandName}.js`);
+    const outputPath = join(__dirname, '..', 'commands', commandFolder, `${commandName}.js`);
     if (!ensureFileDoesNotExist(outputPath)) {
         return;
     }
@@ -792,8 +792,8 @@ async function createCommand() {
         .replace(/%COMMAND_NAME%/g, commandName)
         .replace(/%COMMAND_DESCRIPTION%/g, escapeDescription(commandDescription));
 
-    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, content, 'utf8');
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, content, 'utf8');
     console.log(paint(`Created file: ${outputPath}`, 'green'));
 }
 
@@ -828,9 +828,9 @@ async function createSubcommand() {
         const rootCommandName = rootSelection.value;
         preview.root = rootCommandName;
 
-        const commandFolderPath = path.join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
-        const rootIndexPath = path.join(commandFolderPath, 'index.js');
-        const rootExists = fs.existsSync(rootIndexPath);
+        const commandFolderPath = join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
+        const rootIndexPath = join(commandFolderPath, 'index.js');
+        const rootExists = existsSync(rootIndexPath);
 
         let rootDescription = '';
         if (!rootExists) {
@@ -857,7 +857,7 @@ async function createSubcommand() {
         });
         preview.sub = subcommandName;
 
-        const subcommandPath = path.join(commandFolderPath, `${subcommandName}.js`);
+        const subcommandPath = join(commandFolderPath, `${subcommandName}.js`);
         if (!ensureFileDoesNotExist(subcommandPath)) {
             return;
         }
@@ -915,9 +915,9 @@ async function createSubgroupCommand() {
             const rootCommandName = rootSelection.value;
             preview.root = rootCommandName;
 
-            const commandFolderPath = path.join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
-            const rootIndexPath = path.join(commandFolderPath, 'index.js');
-            const rootExists = fs.existsSync(rootIndexPath);
+            const commandFolderPath = join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
+            const rootIndexPath = join(commandFolderPath, 'index.js');
+            const rootExists = existsSync(rootIndexPath);
 
             let rootDescription = '';
             if (!rootExists) {
@@ -950,9 +950,9 @@ async function createSubgroupCommand() {
             const subcommandName = subSelection.value;
             preview.sub = subcommandName;
 
-            const subgroupFolderPath = path.join(commandFolderPath, getBracketFolderName(subcommandName));
-            const subgroupIndexPath = path.join(subgroupFolderPath, 'index.js');
-            const subgroupIndexExists = fs.existsSync(subgroupIndexPath);
+            const subgroupFolderPath = join(commandFolderPath, getBracketFolderName(subcommandName));
+            const subgroupIndexPath = join(subgroupFolderPath, 'index.js');
+            const subgroupIndexExists = existsSync(subgroupIndexPath);
 
             let subcommandDescription = '';
             if (!subgroupIndexExists) {
@@ -979,7 +979,7 @@ async function createSubgroupCommand() {
             });
             preview.subgroup = subgroupCommandName;
 
-            const subgroupCommandPath = path.join(subgroupFolderPath, `${subgroupCommandName}.js`);
+            const subgroupCommandPath = join(subgroupFolderPath, `${subgroupCommandName}.js`);
             if (!ensureFileDoesNotExist(subgroupCommandPath)) {
                 return;
             }

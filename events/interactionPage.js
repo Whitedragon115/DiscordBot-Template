@@ -1,55 +1,58 @@
-const { Events, EmbedBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const logger = require('../function/log');
+import { Events, EmbedBuilder } from 'discord.js';
+import { readdirSync } from 'fs';
+import { join } from 'path';
+import logger from '../function/log.js';
 
-module.exports = {
+export default {
 	name: Events.InteractionCreate,
 
 	/**
-	 * 
 	 * @param {import('discord.js').Interaction} interaction 
 	 * @param {import('discord.js').Client & {rcon: import('rcon-client').Rcon}} client 
-	 * @returns 
 	 */
 
 	async execute(interaction, client) {
+		const isButton = interaction.isButton();
+		const isModalSubmit = interaction.isModalSubmit();
+		if (!isButton && !isModalSubmit) return;
 
-		if (!interaction.isButton() && !interaction.isModalSubmit()) return;
 		const pageMatch = interaction.customId && interaction.customId.match(/^page\:(\d+)_/);
 		if (!pageMatch) return;
+
 		const page = parseInt(pageMatch[1]);
-		interaction.customId = interaction.customId.replace(/^page\:(\d+)_/, 'page_');
-		
+		const customId = interaction.customId.replace(/^page\:(\d+)_/, 'page_');
+
+		/** @type {{ [k: string]: any }} */
 		const Action = {};
+		/** @type {{ [k: string]: boolean }} */
 		const AdminMap = {};
 
-		const ActionFolderPath = path.join(process.cwd(), 'trigger');
-		const actionFolders = fs.readdirSync(ActionFolderPath);
+		const ActionFolderPath = join(process.cwd(), 'trigger');
+		const actionFolders = readdirSync(ActionFolderPath);
 
 		for (const folder of actionFolders) {
-			const actionPath = path.join(ActionFolderPath, folder);
-			const actionFiles = fs.readdirSync(actionPath).filter(file => file.endsWith('.js'));
+			const actionPath = join(ActionFolderPath, folder);
+			const actionFiles = readdirSync(actionPath).filter(file => file.endsWith('.js'));
 			for (const file of actionFiles) {
-				const filePath = path.join(actionPath, file);
-				const action = require(filePath);
+				const filePath = join(actionPath, file);
+				const { default: action } = await import(new URL(filePath, import.meta.url).href);
 				const admin = file.includes('[admin]') ? true : false;
+
 				Action[action.customId] = action;
 				AdminMap[action.customId] = admin;
 			}
 		}
 
-		const action = Action[interaction.customId];
-		const isAdminAction = AdminMap[interaction.customId];
+		const action = Action[customId];
+		const isAdminAction = AdminMap[customId];
 
 		if (action) {
 			try {
 				await action.execute(interaction, client, page);
 			} catch (error) {
-
 				const replied = interaction.replied || interaction.deferred;
-				logger.error(`Error executing command ${interaction.commandName}`)
-				logger.error(error.stack);
+				logger.error(`Error executing command ${interaction.customId}`)
+				logger.error(error instanceof Error ? error.stack : error);
 
 				const embed = new EmbedBuilder()
 					.setTitle('Error ❌')
