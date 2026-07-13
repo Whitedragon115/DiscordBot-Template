@@ -2,13 +2,18 @@
   "name": "disbase-v4",
   "version": "1.0.1",
   "description": "",
-  "main": "index.js",
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "zip": "node .script/zip.js",
-    "upload": "node .script/upload.js",
-    "dp": "node .script/deploy.js",
-    "newcmd": "node .script/newCmd.js",
-    "newtri": "node .script/newTrigger.js"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch index.ts",
+    "start": "node dist/index.js",
+    "zip": "tsx .script/zip.ts",
+    "upload": "tsx .script/upload.ts",
+    "dp": "tsx .script/deploy.ts",
+    "newcmd": "tsx .script/newCmd.ts",
+    "newtri": "tsx .script/newTrigger.ts"
   },
   "author": "",
   "license": "ISC",
@@ -21,5 +26,15 @@
   },
   "engines": {
     "node": ">=22.0.0"
-  }
+  },
+  "devDependencies": {
+    "@types/archiver": "^8.0.0",
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  },
+  "files": [
+    "dist",
+    "package.json"
+  ]
 }

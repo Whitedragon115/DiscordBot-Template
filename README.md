@@ -1,5 +1,27 @@
 # Discord Bot Template
 
+TypeScript and Discord.js bot template with filesystem-discovered commands,
+events, and component triggers.
+
+## Development
+
+```sh
+npm install
+npm run typecheck
+npm run dev
+```
+
+`npm run dev` executes the TypeScript source directly and restarts when files
+change. For production, compile and run the generated ESM output:
+
+```sh
+npm run build
+npm start
+```
+
+Other tools remain available through `npm run dp`, `npm run newcmd`,
+`npm run newtri`, `npm run zip`, and `npm run upload`.
+
 # Mysql Prisma install
 
 1. Install Prisma
@@ -33,7 +55,7 @@
    ```
 
 5. Use Prisma
-   ```js
+   ```ts
    import { PrismaClient } from './generated/prisma/client.ts';
    import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 

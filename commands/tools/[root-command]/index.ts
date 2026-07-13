@@ -1,6 +1,7 @@
 
 
 import { SlashCommandBuilder } from 'discord.js';
+import { extname } from 'node:path';
 
 /**
  * @param {any} options
@@ -10,7 +11,7 @@ async function getExecuteFile(options) {
     const subCommand = options.getSubcommand();
     const subGroupCommand = options.getSubcommandGroup()
     const subGroupCommandFolder = subGroupCommand ? `/[${subGroupCommand}]` : ''
-    const filePath = `.${subGroupCommandFolder}/${subCommand}.js`;
+    const filePath = `.${subGroupCommandFolder}/${subCommand}${extname(import.meta.filename)}`;
 
     return (await import(new URL(filePath, import.meta.url).href)).default;
 };

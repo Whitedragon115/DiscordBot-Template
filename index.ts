@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'node:url';
 import dotenv from 'dotenv';
 import logger from './function/log.js';
 import MyClient from './utils/myClient.js';
@@ -11,6 +12,7 @@ import MyClient from './utils/myClient.js';
 dotenv.config();
 
 const client = new MyClient();
+const moduleFileExtension = path.extname(import.meta.filename);
 
 async function configCheck() {
 	let errorCount = 0;
@@ -34,7 +36,7 @@ async function configCheck() {
 }
 
 async function subCommandMismatchChecker() {
-	const commandsRoot = path.join(__dirname, 'commands');
+	const commandsRoot = path.join(import.meta.dirname, 'commands');
 	const bracketFolderRegex = /^\[.+\]$/;
 	let checkedCount = 0;
 	let mismatchCount = 0;
@@ -60,15 +62,15 @@ async function subCommandMismatchChecker() {
 				continue;
 			}
 
-			if (!entry.name.endsWith('.js') || entry.name === 'index.js') {
+			if (!entry.name.endsWith(moduleFileExtension) || entry.name === `index${moduleFileExtension}`) {
 				continue;
 			}
 
 			checkedCount++;
-			const expectedName = path.basename(entry.name, '.js');
+			const expectedName = path.basename(entry.name, moduleFileExtension);
 
 			try {
-				const { default: commandModule } = await import(new URL(entryPath, import.meta.url).href);
+				const { default: commandModule } = await import(pathToFileURL(entryPath).href);
 				const actualName = commandModule?.data?.name;
 
 				if (typeof actualName !== 'string') {
@@ -118,7 +120,7 @@ async function prismaGenerate() {
 
 		execSync('npx prisma generate', {
 			stdio: 'inherit',
-			cwd: __dirname
+			cwd: import.meta.dirname
 		});
 
 		logger.success('Prisma Client generated successfully.');
@@ -149,11 +151,11 @@ async function init() {
 
 	/** @type {{ [k: string]: any }} */
 	const buttonActions = {};
-	const ActionFolderPath = path.join(process.cwd(), 'trigger');
+	const ActionFolderPath = path.join(import.meta.dirname, 'trigger');
 	const actionFolders = fs.readdirSync(ActionFolderPath);
 	const maxActionLength = Math.max(...actionFolders.map(folder => folder.length));
 
-	const foldersPath = path.join(__dirname, 'commands');
+	const foldersPath = path.join(import.meta.dirname, 'commands');
 	const commandFolders = fs.readdirSync(foldersPath);
 	const maxfolderLength = Math.max(...commandFolders.map(folder => folder.length));
 
@@ -166,13 +168,13 @@ async function init() {
 
 		const subCommandRegex = /^\[(.*)\]$/;
 		const commandsPath = path.join(foldersPath, folder);
-		const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+		const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(moduleFileExtension));
 		const subCommandFiles = fs.readdirSync(commandsPath).filter(file => fs.statSync(path.join(commandsPath, file)).isDirectory() && subCommandRegex.test(file));
 
 		let loadstring = "";
 		for (const file of commandFiles) {
 			const filePath = path.join(commandsPath, file);
-			const { default: command } = await import(new URL(filePath, import.meta.url).href);
+			const { default: command } = await import(pathToFileURL(filePath).href);
 
 			if ('data' in command && 'execute' in command) {
 				command.admin = folder.toLowerCase() === 'admin' ? true : false;
@@ -186,8 +188,8 @@ async function init() {
 
 		for (const subCommand of subCommandFiles) {
 			const subCommandPath = path.join(commandsPath, subCommand);
-			const subCommandFilePath = path.join(subCommandPath, 'index.js')
-			const { default: subCommandIndex } = await import(new URL(subCommandFilePath, import.meta.url).href);
+			const subCommandFilePath = path.join(subCommandPath, `index${moduleFileExtension}`)
+			const { default: subCommandIndex } = await import(pathToFileURL(subCommandFilePath).href);
 
 			if ('data' in subCommandIndex && 'execute' in subCommandIndex) {
 				subCommandIndex.admin = folder.toLowerCase() === 'admin' ? true : false;
@@ -210,11 +212,11 @@ async function init() {
 	let actionCount = 0;
 	for (const folder of actionFolders) {
 		const actionPath = path.join(ActionFolderPath, folder);
-		const actionFiles = fs.readdirSync(actionPath).filter(file => file.endsWith('.js'));
+		const actionFiles = fs.readdirSync(actionPath).filter(file => file.endsWith(moduleFileExtension));
 		let loadstring = "";
 		for (const file of actionFiles) {
 			const filePath = path.join(actionPath, file);
-			const { default: action } = await import(new URL(filePath, import.meta.url).href);
+			const { default: action } = await import(pathToFileURL(filePath).href);
 
 			if ('customId' in action && 'execute' in action) {
 				buttonActions[action.customId] = action;
@@ -232,15 +234,15 @@ async function init() {
 	console.log(color.gray(`${__amount}${color.gray(`╧═════════════════════[Successfully loaded ${actionCount} trigger]`)}`))
 	//===== Load Events
 
-	const eventsPath = path.join(__dirname, 'events');
-	const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+	const eventsPath = path.join(import.meta.dirname, 'events');
+	const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith(moduleFileExtension));
 
 	/** @type {string[][]} */
-	const loadingMessage = [[], []];
+	const loadingMessage: string[][] = [[], []];
 	let eventcount = 0;
 	for (const file of eventFiles) {
 		const filePath = path.join(eventsPath, file);
-		const { default: event } = await import(new URL(filePath, import.meta.url).href);
+		const { default: event } = await import(pathToFileURL(filePath).href);
 
 		const eventType = event.once ? '[\x1B[32mOnce\x1B[0m]' : '[\x1B[34mOn\x1B[0m]  ';
 		loadingMessage[0].push(`${eventType.padEnd(10)} ${file}`);
@@ -252,13 +254,13 @@ async function init() {
 		}
 	}
 
-	const utilPath = path.join(__dirname, 'utils');
-	const utilFiles = fs.readdirSync(utilPath).filter(file => file.endsWith('.js'));
+	const utilPath = path.join(import.meta.dirname, 'utils');
+	const utilFiles = fs.readdirSync(utilPath).filter(file => file.endsWith(moduleFileExtension));
 	let utilcount = 0;
 
 	for (const file of utilFiles) {
 		const filePath = path.join(utilPath, file);
-		const { default: event } = await import(new URL(filePath, import.meta.url).href);
+		const { default: event } = await import(pathToFileURL(filePath).href);
 
 		const eventType = event.once ? '[\x1B[32mOnce\x1B[0m]' : '[\x1B[34mOn\x1B[0m]';
 		loadingMessage[1].push(`${eventType.padEnd(10)} ${file}`);

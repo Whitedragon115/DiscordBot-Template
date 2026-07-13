@@ -1,11 +1,14 @@
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'node:url';
 
 import { Events, EmbedBuilder, GuildMemberRoleManager } from 'discord.js';
-import { AdminRoleId } from '../config.json';
+import config from '../config.json' with { type: 'json' };
 import MyClient from '../utils/myClient.js';
 import logger from '../function/log.js';
 
+const { AdminRoleId } = config;
+const moduleFileExtension = path.extname(import.meta.filename);
 const Command = LoadCommandFolder();
 
 export default {
@@ -74,18 +77,18 @@ export default {
 async function LoadCommandFolder() {
 	/** @type {{ [k: string]: any }} */
 	const commands = {};
-	const CommandFolderPath = path.join(__dirname, '..', 'commands');
+	const CommandFolderPath = path.join(import.meta.dirname, '..', 'commands');
 	const commandFolders = fs.readdirSync(CommandFolderPath);
 
 	for (const folder of commandFolders) {
 		const commandPath = path.join(CommandFolderPath, folder);
-		const commandFiles = fs.readdirSync(commandPath).filter(file => file.endsWith('.js'));
+		const commandFiles = fs.readdirSync(commandPath).filter(file => file.endsWith(moduleFileExtension));
 		const subCommandRegex = /^\[(.*)\]$/;
 		const subCommandFiles = fs.readdirSync(commandPath).filter(file => fs.statSync(path.join(commandPath, file)).isDirectory() && subCommandRegex.test(file));
 
 		for (const file of commandFiles) {
 			const filePath = path.join(commandPath, file);
-			const { default: command } = await import(new URL(filePath, import.meta.url).href);
+			const { default: command } = await import(pathToFileURL(filePath).href);
 
 			command.folder = folder;
 			commands[command.data.name] = command;
@@ -93,8 +96,8 @@ async function LoadCommandFolder() {
 
 		for (const subCommandFolder of subCommandFiles) {
 			const subCommandPath = path.join(commandPath, subCommandFolder);
-			const subCommandIndexPath = path.join(subCommandPath, 'index.js');
-			const { default: subCommand } = await import(new URL(subCommandIndexPath, import.meta.url).href);
+			const subCommandIndexPath = path.join(subCommandPath, `index${moduleFileExtension}`);
+			const { default: subCommand } = await import(pathToFileURL(subCommandIndexPath).href);
 
 			subCommand.folder = folder;
 			commands[subCommand.data.name] = subCommand;

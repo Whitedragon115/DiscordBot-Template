@@ -3,7 +3,7 @@
  * @param {Date | null} [date=null]
  * @returns {string}
  */
-export function formatDate(date = null) {
+export function formatDate(date: Date | null = null) {
     if (!date) date = new Date();
 
     const year = date.getFullYear();
@@ -35,7 +35,7 @@ export function uptimeFormat(data) {
  * @param {number | null} [date=null]
  * @returns {number}
  */
-export function unixTimeStamp(date = null) {
+export function unixTimeStamp(date: number | null = null) {
     if (!date) date = Date.now();
     return Math.floor(date / 1000);
 };

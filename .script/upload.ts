@@ -1,8 +1,15 @@
 import { readdir, stat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const ZIP_DIR = join(__dirname, '..', 'zips');
+const ZIP_DIR = join(import.meta.dirname, '..', 'zips');
 const UPLOAD_URL = 'https://tmpfiles.org/api/v1/upload';
+
+interface ZipFile {
+    name: string;
+    path: string;
+    mtimeMs: number;
+    size: number;
+}
 
 async function getLatestZipFile(dir) {
     const entries = await readdir(dir, { withFileTypes: true });
@@ -12,7 +19,7 @@ async function getLatestZipFile(dir) {
         throw new Error(`No .zip files found in ${dir}`);
     }
 
-    let latest = null;
+    let latest: ZipFile | null = null;
 
     for (const file of zipFiles) {
         const filePath = join(dir, file.name);
@@ -28,7 +35,7 @@ async function getLatestZipFile(dir) {
         }
     }
 
-    return latest;
+    return latest!;
 }
 
 function toDirectDownloadUrl(url) {

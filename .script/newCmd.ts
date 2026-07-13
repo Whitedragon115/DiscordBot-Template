@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { clearScreenDown, emitKeypressEvents } from 'node:readline';
-import { Select, Input } from 'enquirer';
+import enquirer from 'enquirer';
+
+const { Select, Input } = enquirer as any;
 
 const commandModes = [
     { name: 'command', label: 'command' },
@@ -9,7 +11,7 @@ const commandModes = [
     { name: 'subgroupcommand', label: 'subcommandgroup' }
 ];
 
-const stateFilePath = join(__dirname, '.newcmd-state.json');
+const stateFilePath = join(import.meta.dirname, '.newcmd-state.json');
 
 const color = {
     reset: '\x1b[0m',
@@ -27,6 +29,7 @@ const BACK_STEP = Symbol('back-step');
 
 const rootIndexTemplate = `
 import { SlashCommandBuilder } from 'discord.js';
+import { extname } from 'node:path';
 
 /**
  * @param {any} options
@@ -35,8 +38,8 @@ import { SlashCommandBuilder } from 'discord.js';
 async function getExecuteFile(options) {
     const subCommand = options.getSubcommand();
     const subGroupCommand = options.getSubcommandGroup()
-    const subGroupCommandFolder = subGroupCommand ? \`/[${subGroupCommand}]\` : ''
-    const filePath = \`.${subGroupCommandFolder}/${subCommand}.js\`;
+    const subGroupCommandFolder = subGroupCommand ? \`/[\${subGroupCommand}]\` : ''
+    const filePath = \`.\${subGroupCommandFolder}/\${subCommand}\${extname(import.meta.filename)}\`;
 
     return (await import(new URL(filePath, import.meta.url).href)).default;
 };
@@ -236,7 +239,7 @@ function writeFileWithCheck(filePath, content) {
 }
 
 function listRootCommands(parentFolder) {
-    const commandsPath = join(__dirname, '..', 'commands', parentFolder);
+    const commandsPath = join(import.meta.dirname, '..', 'commands', parentFolder);
     if (!existsSync(commandsPath)) {
         return [];
     }
@@ -248,7 +251,7 @@ function listRootCommands(parentFolder) {
 }
 
 function listSubcommandGroups(parentFolder, rootCommandName) {
-    const rootFolderPath = join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
+    const rootFolderPath = join(import.meta.dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
     if (!existsSync(rootFolderPath)) {
         return [];
     }
@@ -260,7 +263,7 @@ function listSubcommandGroups(parentFolder, rootCommandName) {
 }
 
 function listNormalCommandFolders() {
-    const commandsPath = join(__dirname, '..', 'commands');
+    const commandsPath = join(import.meta.dirname, '..', 'commands');
     if (!existsSync(commandsPath)) {
         return [];
     }
@@ -280,7 +283,7 @@ function paintPreviewSegment(value, isFocused) {
     return paint(text, 'dim');
 }
 
-function getCommandPreview(mode, preview = {}, focusedPart = '') {
+function getCommandPreview(mode, preview: Record<string, string> = {}, focusedPart = '') {
     if (mode === 'command') {
         return `/${paintPreviewSegment(preview.command || '<command>', focusedPart === 'command')}`;
     }
@@ -325,7 +328,7 @@ function getRequiredValidator(validator) {
     return (inputValue) => inputValue && inputValue.trim() ? true : 'This field is required.';
 }
 
-async function promptText({ mode, preview, systemPrompt, label, initial = '', focusedPart = '', validator }) {
+async function promptText({ mode, preview, systemPrompt, label, initial = '', focusedPart = '', validator = undefined as any }) {
     printPromptFrame(mode, preview, systemPrompt, focusedPart);
     const value = await runPromptSafe(new Input({
         name: 'value',
@@ -337,7 +340,7 @@ async function promptText({ mode, preview, systemPrompt, label, initial = '', fo
     return value.trim();
 }
 
-async function promptOptionalText({ mode, preview, systemPrompt, label, initial = '', focusedPart = '', validator }) {
+async function promptOptionalText({ mode, preview, systemPrompt, label, initial = '', focusedPart = '', validator = undefined as any }) {
     printPromptFrame(mode, preview, systemPrompt, focusedPart);
     const value = await runPromptSafe(new Input({
         name: 'value',
@@ -478,7 +481,7 @@ async function promptHorizontalMode({ mode, preview, systemPrompt, label, choice
     });
 }
 
-async function promptSelectOrInput({ mode, preview, systemPrompt, choices, focusedPart = '', validator }) {
+async function promptSelectOrInput({ mode, preview, systemPrompt, choices, focusedPart = '', validator = undefined as any }) {
     const stdin = process.stdin;
     const stdout = process.stdout;
 
@@ -511,7 +514,7 @@ async function promptSelectOrInput({ mode, preview, systemPrompt, choices, focus
         return { value: typed, existed: false };
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<any>((resolve, reject) => {
         const inputChoiceIndex = choices.length;
         let selectedIndex = 0;
         let typedInput = '';
@@ -739,7 +742,7 @@ async function chooseOrEnterFolder({ mode, preview, systemPrompt, existingFolder
 }
 
 async function ensureRootIndexIfMissing(folderPath, rootCommandName, rootDescription) {
-    const rootIndexPath = join(folderPath, 'index.js');
+    const rootIndexPath = join(folderPath, 'index.ts');
     if (existsSync(rootIndexPath)) {
         return true;
     }
@@ -752,7 +755,7 @@ async function ensureRootIndexIfMissing(folderPath, rootCommandName, rootDescrip
 }
 
 async function createCommand() {
-    const preview = {};
+    const preview: Record<string, string> = {};
 
     const commandFolder = await chooseOrEnterFolder({
         mode: 'command',
@@ -775,7 +778,7 @@ async function createCommand() {
     });
     preview.command = commandName;
 
-    const outputPath = join(__dirname, '..', 'commands', commandFolder, `${commandName}.js`);
+    const outputPath = join(import.meta.dirname, '..', 'commands', commandFolder, `${commandName}.ts`);
     if (!ensureFileDoesNotExist(outputPath)) {
         return;
     }
@@ -798,7 +801,7 @@ async function createCommand() {
 }
 
 async function createSubcommand() {
-    const preview = {};
+    const preview: Record<string, string> = {};
 
     while (true) {
         const parentFolder = await chooseOrEnterFolder({
@@ -828,8 +831,8 @@ async function createSubcommand() {
         const rootCommandName = rootSelection.value;
         preview.root = rootCommandName;
 
-        const commandFolderPath = join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
-        const rootIndexPath = join(commandFolderPath, 'index.js');
+        const commandFolderPath = join(import.meta.dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
+        const rootIndexPath = join(commandFolderPath, 'index.ts');
         const rootExists = existsSync(rootIndexPath);
 
         let rootDescription = '';
@@ -857,7 +860,7 @@ async function createSubcommand() {
         });
         preview.sub = subcommandName;
 
-        const subcommandPath = join(commandFolderPath, `${subcommandName}.js`);
+        const subcommandPath = join(commandFolderPath, `${subcommandName}.ts`);
         if (!ensureFileDoesNotExist(subcommandPath)) {
             return;
         }
@@ -884,7 +887,7 @@ async function createSubcommand() {
 }
 
 async function createSubgroupCommand() {
-    const preview = {};
+    const preview: Record<string, string> = {};
 
     while (true) {
         const parentFolder = await chooseOrEnterFolder({
@@ -915,8 +918,8 @@ async function createSubgroupCommand() {
             const rootCommandName = rootSelection.value;
             preview.root = rootCommandName;
 
-            const commandFolderPath = join(__dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
-            const rootIndexPath = join(commandFolderPath, 'index.js');
+            const commandFolderPath = join(import.meta.dirname, '..', 'commands', parentFolder, getBracketFolderName(rootCommandName));
+            const rootIndexPath = join(commandFolderPath, 'index.ts');
             const rootExists = existsSync(rootIndexPath);
 
             let rootDescription = '';
@@ -951,7 +954,7 @@ async function createSubgroupCommand() {
             preview.sub = subcommandName;
 
             const subgroupFolderPath = join(commandFolderPath, getBracketFolderName(subcommandName));
-            const subgroupIndexPath = join(subgroupFolderPath, 'index.js');
+            const subgroupIndexPath = join(subgroupFolderPath, 'index.ts');
             const subgroupIndexExists = existsSync(subgroupIndexPath);
 
             let subcommandDescription = '';
@@ -979,7 +982,7 @@ async function createSubgroupCommand() {
             });
             preview.subgroup = subgroupCommandName;
 
-            const subgroupCommandPath = join(subgroupFolderPath, `${subgroupCommandName}.js`);
+            const subgroupCommandPath = join(subgroupFolderPath, `${subgroupCommandName}.ts`);
             if (!ensureFileDoesNotExist(subgroupCommandPath)) {
                 return;
             }

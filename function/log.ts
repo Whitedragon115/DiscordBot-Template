@@ -79,7 +79,7 @@ function formatLog(timestamp, level, message, meta) {
 // Logger Object
 // ============================================
 /** @type {Logger} */
-const logger = {};
+const logger: Record<string, any> = {};
 
 // ============================================
 // 1️⃣ Basic Logging Functions

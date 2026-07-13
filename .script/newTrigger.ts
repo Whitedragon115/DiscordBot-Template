@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { Select, Input } from 'enquirer';
+import enquirer from 'enquirer';
+
+const { Select, Input } = enquirer as any;
 
 const triggerTypes = [
     { name: 'button', label: 'button' },
@@ -8,7 +10,7 @@ const triggerTypes = [
     { name: 'select', label: 'select' }
 ];
 
-const stateFilePath = join(__dirname, '.newtri-state.json');
+const stateFilePath = join(import.meta.dirname, '.newtri-state.json');
 const triggerNamePattern = /^[a-z0-9_-]{1,64}$/;
 
 const color = {
@@ -126,7 +128,7 @@ function getPreview(preview) {
     const customId = preview.customId || '<customId>';
     return [
         `${paint('/trigger', 'magenta')} ${paint(type, 'green')}`,
-        `${paint('|', 'dim')} ${paint(`trigger/${folder}/${file}.js`, 'dim')}`,
+        `${paint('|', 'dim')} ${paint(`trigger/${folder}/${file}.ts`, 'dim')}`,
         `${paint('|', 'dim')} ${paint(`customId: ${customId}`, 'dim')}`
     ].join('\n');
 }
@@ -151,7 +153,7 @@ function validateTriggerName(value) {
 }
 
 function listTriggerFolders() {
-    const triggerPath = join(__dirname, '..', 'trigger');
+    const triggerPath = join(import.meta.dirname, '..', 'trigger');
     if (!existsSync(triggerPath)) {
         return [];
     }
@@ -242,7 +244,7 @@ async function main() {
     const [, , typeArgRaw] = process.argv;
     const typeArg = typeArgRaw ? typeArgRaw.toLowerCase() : '';
 
-    const preview = {};
+    const preview: Record<string, string> = {};
 
     const triggerType = await promptSelectType(typeArg, preview);
     preview.type = triggerType;
@@ -256,8 +258,8 @@ async function main() {
         message: `${paint('>>', 'cyan')} File name`,
         validate: validateTriggerName
     }));
-    const fileName = rawFileName.trim().endsWith('.js') ? rawFileName.trim() : `${rawFileName.trim()}.js`;
-    preview.file = fileName.replace(/\.js$/i, '');
+    const fileName = rawFileName.trim().endsWith('.ts') ? rawFileName.trim() : `${rawFileName.trim()}.ts`;
+    preview.file = fileName.replace(/\.ts$/i, '');
 
     printFrame(preview, 'Enter trigger customId');
     const customId = (await runPromptSafe(new Input({
@@ -267,7 +269,7 @@ async function main() {
     }))).trim();
     preview.customId = customId;
 
-    const triggerFolderPath = join(__dirname, '..', 'trigger', folder);
+    const triggerFolderPath = join(import.meta.dirname, '..', 'trigger', folder);
     const outputPath = join(triggerFolderPath, fileName);
 
     if (existsSync(outputPath)) {

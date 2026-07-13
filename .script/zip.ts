@@ -1,13 +1,16 @@
 import { mkdirSync, createWriteStream, existsSync } from 'fs';
 import { join } from 'path';
+// TypeScript's declaration uses `export =`, while Node exposes a default in ESM.
+// @ts-expect-error Runtime ESM interoperability is provided by Node.
 import archiver from 'archiver';
 
 const OUTPUT_DIR = join(import.meta.dirname, '..', 'zips');
 
 const FILES = [
-    'index.js',
+    'index.ts',
     'config.json',
     'package.json',
+    'tsconfig.json',
     'prisma.config.ts',
     '.env'
 ];
@@ -49,7 +52,7 @@ archive.on('error', (err) => {
 archive.pipe(output);
 
 for (const file of FILES) {
-    const filePath = join(__dirname, file);
+    const filePath = join(import.meta.dirname, '..', file);
     if (existsSync(filePath)) {
         archive.file(filePath, { name: file });
     } else {
@@ -58,7 +61,7 @@ for (const file of FILES) {
 }
 
 for (const folder of FOLDERS) {
-    const folderPath = join(__dirname, folder);
+    const folderPath = join(import.meta.dirname, '..', folder);
     if (existsSync(folderPath)) {
         archive.directory(folderPath, folder);
     } else {

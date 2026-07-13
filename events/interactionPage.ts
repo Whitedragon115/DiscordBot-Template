@@ -1,7 +1,10 @@
 import { Events, EmbedBuilder } from 'discord.js';
 import { readdirSync } from 'fs';
-import { join } from 'path';
+import { extname, join } from 'path';
+import { pathToFileURL } from 'node:url';
 import logger from '../function/log.js';
+
+const moduleFileExtension = extname(import.meta.filename);
 
 export default {
 	name: Events.InteractionCreate,
@@ -27,15 +30,15 @@ export default {
 		/** @type {{ [k: string]: boolean }} */
 		const AdminMap = {};
 
-		const ActionFolderPath = join(process.cwd(), 'trigger');
+		const ActionFolderPath = join(import.meta.dirname, '..', 'trigger');
 		const actionFolders = readdirSync(ActionFolderPath);
 
 		for (const folder of actionFolders) {
 			const actionPath = join(ActionFolderPath, folder);
-			const actionFiles = readdirSync(actionPath).filter(file => file.endsWith('.js'));
+			const actionFiles = readdirSync(actionPath).filter(file => file.endsWith(moduleFileExtension));
 			for (const file of actionFiles) {
 				const filePath = join(actionPath, file);
-				const { default: action } = await import(new URL(filePath, import.meta.url).href);
+				const { default: action } = await import(pathToFileURL(filePath).href);
 				const admin = file.includes('[admin]') ? true : false;
 
 				Action[action.customId] = action;
